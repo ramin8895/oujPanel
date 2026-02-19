@@ -72,30 +72,23 @@ router.get("/webhook", (req, res) => {
 router.post("/webhook", async (req, res) => {
   const body = req.body;
 
-  // اضافه کردن چک کردن برای جلوگیری از کرش
-  if (body && body.object === "instagram") {
-    
-    if (body.entry && Array.isArray(body.entry)) {
-      body.entry.forEach(async (entry) => {
+  if (body.object === "instagram") {
+    body.entry.forEach(async (entry) => {
+      const webhook_event = entry.messaging[0];
+      console.log("📩 پیام جدید دریافت شد:", webhook_event);
+
+      const senderId = webhook_event.sender.id; 
+      const messageText = webhook_event.message?.text; 
+
+      if (messageText) {
+        console.log(`متن پیام: ${messageText} از طرف: ${senderId}`);
         
-        // چک کردن وجود messaging
-        if (entry.messaging && entry.messaging[0]) {
-          const webhook_event = entry.messaging[0];
-          console.log("📩 پیام جدید دریافت شد:", webhook_event);
-
-          const senderId = webhook_event.sender?.id; 
-          const messageText = webhook_event.message?.text; 
-
-          if (messageText) {
-            console.log(`متن پیام: ${messageText} از طرف: ${senderId}`);
-          }
-        }
-      });
-    }
+       
+      }
+    });
 
     res.status(200).send("EVENT_RECEIVED");
   } else {
-    // اگر ریکوئست مربوط به اینستاگرام نبود یا خالی بود
     res.sendStatus(404);
   }
 });
