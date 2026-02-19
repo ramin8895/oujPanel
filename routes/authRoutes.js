@@ -72,24 +72,38 @@ router.get("/webhook", (req, res) => {
 router.post("/webhook", async (req, res) => {
   const body = req.body;
 
-  if (body.object === "instagram") {
-    body.entry.forEach(async (entry) => {
-      const webhook_event = entry.messaging[0];
-      console.log("📩 پیام جدید دریافت شد:", webhook_event);
-
-      const senderId = webhook_event.sender.id; 
-      const messageText = webhook_event.message?.text; 
-
-      if (messageText) {
-        console.log(`متن پیام: ${messageText} از طرف: ${senderId}`);
+  if (body && body.object === "instagram") {
+    if (body.entry && Array.isArray(body.entry)) {
+      body.entry.forEach(async (entry) => {
         
-       
-      }
-    });
-
-    res.status(200).send("EVENT_RECEIVED");
+        // این بخش برای پیام‌های واقعی اینستاگرام است
+        if (entry.messaging && entry.messaging[0]) {
+          const webhook_event = entry.messaging[0];
+          handleEvent(webhook_event);
+        } 
+        // این بخش برای دیتای تستی پنل متا (اگر مستقیم در changes باشد)
+        else if (entry.changes && entry.changes[0] && entry.changes[0].value) {
+          const webhook_event = entry.changes[0].value;
+          handleEvent(webhook_event);
+        }
+      });
+    }
+    return res.status(200).send("EVENT_RECEIVED");
   } else {
-    res.sendStatus(404);
+    return res.sendStatus(404);
   }
 });
+
+// تابع کمکی برای پردازش رویداد
+function handleEvent(event) {
+  const senderId = event.sender?.id;
+  const messageText = event.message?.text;
+
+  if (messageText) {
+    console.log(`📩 پیام دریافت شد: "${messageText}" از طرف: ${senderId}`);
+    // اینجا می‌توانید تابع پاسخگویی را صدا بزنید
+  } else {
+    console.log("⚠️ رویداد دریافت شد اما حاوی متن پیام نبود.");
+  }
+}
 module.exports = router;
