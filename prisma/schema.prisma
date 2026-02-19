@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  accounts  InstagramAccount[]
+  createdAt DateTime @default(now())
+}
+
+model InstagramAccount {
+  id              String   @id @default(uuid())
+  userId          String
+  igUserId        String   @unique
+  pageId          String
+  pageAccessToken String
+  isBotActive     Boolean  @default(true)
+  rules           AutoReplyRule[]
+  conversations   Conversation[]
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AutoReplyRule {
+  id        String   @id @default(uuid())
+  accountId String
+  keyword   String
+  replyText String
+  matchType String   @default("includes")
+  createdAt DateTime @default(now())
+
+  account InstagramAccount @relation(fields: [accountId], references: [id])
+}
+
+model Conversation {
+  id        String   @id @default(uuid())
+  accountId String
+  senderId  String
+  message   String
+  botReply  String
+  createdAt DateTime @default(now())
+
+  account InstagramAccount @relation(fields: [accountId], references: [id])
+}
