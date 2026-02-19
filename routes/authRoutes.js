@@ -1,14 +1,7 @@
 const router = require("express").Router();
 const auth = require("../controllers/authController");
-const authMiddleware = require("../middlewares/authMiddleware");
 const jwt = require("jsonwebtoken");
-const prisma = require("../config/prisma");
-const { default: axios } = require("axios");
-const { SocksProxyAgent } = require("socks-proxy-agent");
-
-// تنظیمات پراکسی برای عبور از فیلترینگ
-const proxyUrl = "socks5://127.0.0.1:10808";
-const agent = new SocksProxyAgent(proxyUrl);
+const axios = require("axios"); // اصلاح نحوه Import اکسوس
 
 // --- متدهای مربوط به احراز هویت ---
 router.post("/register", auth.register);
@@ -46,7 +39,7 @@ router.get("/facebook/connect", async (req, res) => {
   }
 });
 
-// --- بخش Webhook (تاییدیه متا) ---
+// --- بخش Webhook (تاییدیه متا - GET) ---
 router.get("/webhook", (req, res) => {
   const VERIFY_TOKEN = "UYnH5+p2qQMsPvIm9S5yZ1BZc5rtN1COd0iXK1zxYMA=";
 
@@ -58,21 +51,26 @@ router.get("/webhook", (req, res) => {
     console.log("✅ WEBHOOK_VERIFIED");
     return res.status(200).send(challenge);
   } else {
+    console.error("❌ WEBHOOK_VERIFICATION_FAILED");
     return res.sendStatus(403);
   }
 });
 
-// --- بخش Webhook (دریافت پیام) ---
+// --- بخش Webhook (دریافت پیام - POST) ---
 router.post("/webhook", async (req, res) => {
   const body = req.body;
 
+  // لاگ برای اطمینان از رسیدن درخواست
+  console.log("📩 درخواست جدید در Webhook دریافت شد");
+
   if (body && body.object === "instagram") {
     if (body.entry && Array.isArray(body.entry)) {
-      // استفاده از for...of برای مدیریت درست await
       for (const entry of body.entry) {
+        // ۱. بررسی پیام‌های مستقیم (Messaging)
         if (entry.messaging && entry.messaging[0]) {
           await handleEvent(entry.messaging[0]);
         } 
+        // ۲. بررسی تغییرات (Changes - مخصوص تست‌های پنل متا)
         else if (entry.changes && entry.changes[0] && entry.changes[0].value) {
           await handleEvent(entry.changes[0].value);
         }
@@ -80,6 +78,7 @@ router.post("/webhook", async (req, res) => {
     }
     return res.status(200).send("EVENT_RECEIVED");
   } else {
+    console.log("⚠️ آبجکت دریافت شده اینستاگرام نیست یا بدنه خالی است.");
     return res.sendStatus(404);
   }
 });
@@ -91,20 +90,21 @@ async function handleEvent(event) {
   const messageText = event.message?.text;
 
   if (messageText && senderId) {
-    console.log(`📩 پیام دریافت شد: "${messageText}" از طرف: ${senderId}`);
+    console.log(`📩 پردازش پیام: "${messageText}" از طرف: ${senderId}`);
     
-    // تست پاسخ خودکار
+    // متن پاسخ خودکار
     const replyText = `سلام! پیام شما را دریافت کردم: ${messageText}`;
+    
+    // ارسال پاسخ
     await sendInstagramMessage(senderId, replyText);
   } else {
-    console.log("⚠️ رویداد دریافت شد اما حاوی متن پیام نبود.");
+    console.log("⚠️ رویداد دریافت شد اما فاقد متن یا آیدی فرستنده بود.");
   }
 }
 
 async function sendInstagramMessage(senderId, text) {
-  // توکن صفحه را از .env می‌خواند
   const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN; 
-  const url = `https://graph.facebook.com/v19.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`;
+  const url = `https://graph.facebook.com/v24.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`;
 
   const payload = {
     recipient: { id: senderId },
@@ -112,12 +112,8 @@ async function sendInstagramMessage(senderId, text) {
   };
 
   try {
-    const response = await axios.post(url, payload, {
-      httpAgent: agent,
-      httpsAgent: agent,
-      timeout: 10000 // ۱۰ ثانیه تایم‌اوت
-    });
-    console.log(`✅ پاسخ ارسال شد به: ${senderId}`);
+    const response = await axios.post(url, payload, { timeout: 10000 });
+    console.log(`✅ پاسخ با موفقیت ارسال شد به: ${senderId}`);
     return response.data;
   } catch (error) {
     console.error("❌ خطا در ارسال پیام به اینستاگرام:", error.response?.data || error.message);
