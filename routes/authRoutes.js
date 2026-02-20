@@ -137,17 +137,24 @@ console.log(JSON.stringify(req.body, null, 2));
 
 
 async function handleMessagingEvent(event) {
-  if (event.message?.is_echo) return;
+
+  // ignore system events
+  if (event.message_edit || event.delivery || event.read || event.seen) {
+    return;
+  }
 
   const senderId = event.sender?.id;
   const text = event.message?.text;
 
   if (!senderId || !text) return;
 
-  console.log("📩 messaging:", text);
+  if (event.message.is_echo) return;
+
+  console.log("📩 پیام:", text);
 
   await sendInstagramMessage(senderId, text);
 }
+
 async function handleChangeMessage(msg) {
   const senderId = msg.from?.id;
   const text = msg.text?.body;
