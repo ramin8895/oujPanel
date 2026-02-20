@@ -86,7 +86,7 @@ router.post("/webhook", async (req, res) => {
   const body = req.body;
 
   console.log("📩 درخواست جدید در Webhook دریافت شد");
-
+console.log(JSON.stringify(req.body, null, 2));
   if (body.object !== "instagram") {
     return res.sendStatus(404);
   }
