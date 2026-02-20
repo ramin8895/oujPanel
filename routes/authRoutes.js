@@ -57,51 +57,95 @@ router.get("/webhook", (req, res) => {
 });
 
 // --- بخش Webhook (دریافت پیام - POST) ---
+// router.post("/webhook", async (req, res) => {
+//   const body = req.body;
+
+//   // لاگ برای اطمینان از رسیدن درخواست
+//   console.log("📩 درخواست جدید در Webhook دریافت شد");
+
+//   if (body && body.object === "instagram") {
+//     if (body.entry && Array.isArray(body.entry)) {
+//       for (const entry of body.entry) {
+//         // ۱. بررسی پیام‌های مستقیم (Messaging)
+//         if (entry.messaging && entry.messaging[0]) {
+//           await handleEvent(entry.messaging[0]);
+//         } 
+//         // ۲. بررسی تغییرات (Changes - مخصوص تست‌های پنل متا)
+//         else if (entry.changes && entry.changes[0] && entry.changes[0].value) {
+//           await handleEvent(entry.changes[0].value);
+//         }
+//       }
+//     }
+//     return res.status(200).send("EVENT_RECEIVED");
+//   } else {
+//     console.log("⚠️ آبجکت دریافت شده اینستاگرام نیست یا بدنه خالی است.");
+//     return res.sendStatus(404);
+//   }
+// });
 router.post("/webhook", async (req, res) => {
   const body = req.body;
 
-  // لاگ برای اطمینان از رسیدن درخواست
   console.log("📩 درخواست جدید در Webhook دریافت شد");
 
-  if (body && body.object === "instagram") {
-    if (body.entry && Array.isArray(body.entry)) {
-      for (const entry of body.entry) {
-        // ۱. بررسی پیام‌های مستقیم (Messaging)
-        if (entry.messaging && entry.messaging[0]) {
-          await handleEvent(entry.messaging[0]);
-        } 
-        // ۲. بررسی تغییرات (Changes - مخصوص تست‌های پنل متا)
-        else if (entry.changes && entry.changes[0] && entry.changes[0].value) {
-          await handleEvent(entry.changes[0].value);
-        }
-      }
-    }
-    return res.status(200).send("EVENT_RECEIVED");
-  } else {
-    console.log("⚠️ آبجکت دریافت شده اینستاگرام نیست یا بدنه خالی است.");
+  if (body.object !== "instagram") {
     return res.sendStatus(404);
   }
-});
 
+  for (const entry of body.entry || []) {
+    const messagingEvents = entry.messaging || [];
+
+    for (const event of messagingEvents) {
+      await handleEvent(event);
+    }
+  }
+
+  res.status(200).send("EVENT_RECEIVED");
+});
 // --- توابع کمکی پردازش و ارسال ---
+
+// async function handleEvent(event) {
+//   const senderId = event.sender?.id;
+//   const messageText = event.message?.text;
+
+//   if (messageText && senderId) {
+//     console.log(`📩 پردازش پیام: "${messageText}" از طرف: ${senderId}`);
+    
+//     // متن پاسخ خودکار
+//     const replyText = `سلام! پیام شما را دریافت کردم: ${messageText}`;
+    
+//     // ارسال پاسخ
+//     await sendInstagramMessage(senderId, replyText);
+//   } else {
+//     console.log("⚠️ رویداد دریافت شد اما فاقد متن یا آیدی فرستنده بود.");
+//   }
+// }
+
 
 async function handleEvent(event) {
   const senderId = event.sender?.id;
-  const messageText = event.message?.text;
 
-  if (messageText && senderId) {
-    console.log(`📩 پردازش پیام: "${messageText}" از طرف: ${senderId}`);
-    
-    // متن پاسخ خودکار
-    const replyText = `سلام! پیام شما را دریافت کردم: ${messageText}`;
-    
-    // ارسال پاسخ
-    await sendInstagramMessage(senderId, replyText);
-  } else {
-    console.log("⚠️ رویداد دریافت شد اما فاقد متن یا آیدی فرستنده بود.");
+  // ignore events without sender
+  if (!senderId) return;
+
+  // ignore delivery/read events
+  if (!event.message) return;
+
+  // ignore echo (messages sent by page itself)
+  if (event.message.is_echo) return;
+
+  const messageText = event.message.text;
+
+  if (!messageText) {
+    console.log("⛔ پیام متنی نبود");
+    return;
   }
-}
 
+  console.log(`📩 پیام واقعی: "${messageText}" از ${senderId}`);
+
+  const replyText = `سلام! پیام شما دریافت شد: ${messageText}`;
+
+  await sendInstagramMessage(senderId, replyText);
+}
 async function sendInstagramMessage(senderId, text) {
   const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN; 
   const url = `https://graph.facebook.com/v24.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`;
