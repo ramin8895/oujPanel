@@ -92,10 +92,25 @@ router.post("/webhook", async (req, res) => {
   }
 
   for (const entry of body.entry || []) {
-    const messagingEvents = entry.messaging || [];
 
-    for (const event of messagingEvents) {
-      await handleEvent(event);
+    // ✅ حالت 1: messaging
+    if (entry.messaging) {
+      for (const event of entry.messaging) {
+        await handleMessagingEvent(event);
+      }
+    }
+
+    // ✅ حالت 2: changes (پیام‌های واقعی)
+    if (entry.changes) {
+      for (const change of entry.changes) {
+        const value = change.value;
+
+        if (value.messages) {
+          for (const msg of value.messages) {
+            await handleChangeMessage(msg);
+          }
+        }
+      }
     }
   }
 
@@ -121,31 +136,32 @@ router.post("/webhook", async (req, res) => {
 // }
 
 
-async function handleEvent(event) {
+async function handleMessagingEvent(event) {
+  if (event.message?.is_echo) return;
+
   const senderId = event.sender?.id;
+  const text = event.message?.text;
 
-  // ignore events without sender
-  if (!senderId) return;
+  if (!senderId || !text) return;
 
-  // ignore delivery/read events
-  if (!event.message) return;
+  console.log("📩 messaging:", text);
 
-  // ignore echo (messages sent by page itself)
-  if (event.message.is_echo) return;
+  await sendInstagramMessage(senderId, text);
+}
+async function handleChangeMessage(msg) {
+  const senderId = msg.from?.id;
+  const text = msg.text?.body;
 
-  const messageText = event.message.text;
-
-  if (!messageText) {
-    console.log("⛔ پیام متنی نبود");
+  if (!senderId || !text) {
+    console.log("⛔ پیام change بدون متن");
     return;
   }
 
-  console.log(`📩 پیام واقعی: "${messageText}" از ${senderId}`);
+  console.log(`📩 پیام واقعی IG: ${text}`);
 
-  const replyText = `سلام! پیام شما دریافت شد: ${messageText}`;
-
-  await sendInstagramMessage(senderId, replyText);
+  await sendInstagramMessage(senderId, `پاسخ: ${text}`);
 }
+
 async function sendInstagramMessage(senderId, text) {
   const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN; 
   const url = `https://graph.facebook.com/v24.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`;
